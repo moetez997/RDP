@@ -1,4 +1,4 @@
-name: Windows RDP Pro (Auto-Restart)
+name: Windows RDP Pro (Optimized & Auto-Restart)
 
 on:
   workflow_dispatch:
@@ -14,6 +14,28 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
+
+      - name: Optimize RDP Performance (Keep Wallpaper Enabled)
+        run: |
+          # Disable animations, audio capture, but KEEP wallpaper enabled
+          Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableAnimations" -Value 1
+          Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableAudioCapture" -Value 1
+          # High performance power plan
+          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+
+      - name: Improve RDP Video Quality
+        run: |
+          # Enable H.264 encoding, force TCP for stability
+          Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "fEnableH264" -Value 1
+          Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services" -Name "SelectTransport" -Value 1
+
+      - name: Enhance Mouse Responsiveness
+        run: |
+          # Increase mouse sensitivity, disable acceleration
+          Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSensitivity" -Value "20"
+          Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "0"
+          Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
+          Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
 
       - name: Create Admin User
         run: |
@@ -37,6 +59,17 @@ jobs:
         run: |
           New-NetFirewallRule -DisplayName "Allow RDP from Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -RemoteAddress "100.64.0.0/10"
 
+      - name: Download and Set Custom Wallpaper
+        run: |
+          $url = "https://raw.githubusercontent.com/moetez997/RDP/main/1776448017236.png"
+          $output = "$env:TEMP\wallpaper.png"
+          Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+          # Set the downloaded image as wallpaper
+          Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $output
+          # Refresh the wallpaper immediately
+          RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+          Write-Host "Custom wallpaper set successfully."
+
       - name: Get Tailscale IP with retry
         run: |
           $ts = "C:\Program Files\Tailscale\tailscale.exe"
@@ -59,7 +92,7 @@ jobs:
         run: |
           Write-Host ""
           Write-Host "============================"
-          Write-Host "RDP SERVER READY"
+          Write-Host "RDP SERVER READY (Optimized)"
           Write-Host "IP: $env:TAILSCALE_IP"
           Write-Host "USER: rdpuser"
           Write-Host "PASS: StrongPass123!"

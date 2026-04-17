@@ -15,23 +15,17 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
 
-      - name: Fix DPI and Screen Resolution (Make Everything Normal Size)
+      - name: Fix DPI (Set to 100% - normal size)
         run: |
-          # تحميل أداة QRes لتغيير الدقة (إذا أمكن)
-          $qresUrl = "https://github.com/justice717/QRes/raw/master/QRes.exe"
-          $qresPath = "$env:TEMP\QRes.exe"
-          Invoke-WebRequest -Uri $qresUrl -OutFile $qresPath -UseBasicParsing
-          & $qresPath /x:1920 /y:1080
-          
-          # ضبط مقياس DPI إلى 100% (الحل الأساسي)
           Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "LogPixels" -Value 96 -Type DWord
           Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Win8DpiScaling" -Value 0 -Type DWord
-          
-          # إعادة تشغيل Explorer
+          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "DPI Scaling" -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "PreferredDpi" -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "EnablePerMonitorDpi" -ErrorAction SilentlyContinue
           taskkill /f /im explorer.exe
           Start-Sleep -Seconds 2
           Start-Process explorer.exe
-          Write-Host "DPI set to 100%. Screen resolution attempted 1920x1080."
+          Write-Host "DPI set to 100%. Everything should be normal size now."
 
       - name: Optimize RDP Performance
         run: |
@@ -73,7 +67,7 @@ jobs:
         run: |
           New-NetFirewallRule -DisplayName "Allow RDP from Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -RemoteAddress "100.64.0.0/10"
 
-      - name: Force Custom Wallpaper (Optional)
+      - name: Set Custom Wallpaper (Optional)
         run: |
           $url = "https://raw.githubusercontent.com/moetez997/RDP/main/1776448017236.png"
           $output = "$env:TEMP\wallpaper.png"
@@ -111,7 +105,7 @@ jobs:
           Write-Host "USER: rdpuser"
           Write-Host "PASS: StrongPass123!"
           Write-Host "============================"
-          Write-Host "If screen still large, right-click desktop -> Display settings -> Scale: 100%"
+          Write-Host "Screen should be normal size now."
 
       - name: Keep Runner Alive (silent, then auto-restart)
         run: |

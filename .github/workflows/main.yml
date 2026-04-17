@@ -31,18 +31,36 @@ jobs:
       - name: Connect Tailscale
         run: |
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
+          Start-Sleep -Seconds 5
 
       - name: Allow Tailscale IPs in Firewall
         run: |
           New-NetFirewallRule -DisplayName "Allow RDP from Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -RemoteAddress "100.64.0.0/10"
 
+      - name: Get Tailscale IP with retry
+        run: |
+          $ts = "C:\Program Files\Tailscale\tailscale.exe"
+          $ip = $null
+          for ($i=0; $i -lt 10; $i++) {
+            $ip = & $ts ip -4
+            if ($ip -match '^100\.\d+\.\d+\.\d+$') {
+              break
+            }
+            Write-Host "Waiting for Tailscale IP... attempt $($i+1)"
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ip) {
+            Write-Error "Failed to get Tailscale IP"
+            exit 1
+          }
+          echo "TAILSCALE_IP=$ip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Show RDP Info
         run: |
-          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
           Write-Host ""
           Write-Host "============================"
           Write-Host "RDP SERVER READY"
-          Write-Host "IP: $ip"
+          Write-Host "IP: $env:TAILSCALE_IP"
           Write-Host "USER: rdpuser"
           Write-Host "PASS: StrongPass123!"
           Write-Host "============================"
@@ -50,11 +68,9 @@ jobs:
 
       - name: Keep Runner Alive (silent, then auto-restart)
         run: |
-          # انتظر 5 ساعات و55 دقيقة دون كتابة أي شيء
-          $totalMinutes = 355  # 5h55m
-          $sleepSeconds = 300  # 5 دقائق
+          $totalMinutes = 355
+          $sleepSeconds = 300
           $iterations = [math]::Floor($totalMinutes * 60 / $sleepSeconds)
-          
           for ($i=0; $i -lt $iterations; $i++) {
             Start-Sleep -Seconds $sleepSeconds
           }

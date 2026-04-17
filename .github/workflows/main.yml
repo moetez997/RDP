@@ -1,4 +1,4 @@
-name: Windows RDP Pro
+name: Windows RDP Pro (Auto-Restart)
 
 on:
   workflow_dispatch:
@@ -9,44 +9,67 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      - name: Enable Remote Desktop
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
 
-    - name: Enable Remote Desktop
-      run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
+      - name: Create Admin User
+        run: |
+          $user = "rdpuser"
+          $pass = "StrongPass123!"
+          net user $user $pass /add
+          net localgroup administrators $user /add
+          net localgroup "Remote Desktop Users" $user /add
 
-    - name: Create Admin User
-      run: |
-        $user="rdpuser"
-        $pass="StrongPass123!"
-        net user $user $pass /add
-        net localgroup administrators $user /add
-        net localgroup "Remote Desktop Users" $user /add
+      - name: Install Tailscale
+        run: |
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale.exe
+          Start-Process tailscale.exe -ArgumentList "/S" -Wait
 
-    - name: Install Tailscale
-      run: |
-        Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale.exe
-        Start-Process tailscale.exe -ArgumentList "/S" -Wait
+      - name: Connect Tailscale
+        run: |
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
 
-    - name: Connect Tailscale
-      run: |
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
+      - name: Allow Tailscale IPs in Firewall
+        run: |
+          New-NetFirewallRule -DisplayName "Allow RDP from Tailscale" -Direction Inbound -Protocol TCP -LocalPort 3389 -Action Allow -RemoteAddress "100.64.0.0/10"
 
-    - name: Show RDP Info
-      run: |
-        $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-        Write-Host ""
-        Write-Host "============================"
-        Write-Host "RDP SERVER READY"
-        Write-Host "IP: $ip"
-        Write-Host "USER: rdpuser"
-        Write-Host "PASS: StrongPass123!"
-        Write-Host "============================"
+      - name: Show RDP Info
+        run: |
+          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host ""
+          Write-Host "============================"
+          Write-Host "RDP SERVER READY"
+          Write-Host "IP: $ip"
+          Write-Host "USER: rdpuser"
+          Write-Host "PASS: StrongPass123!"
+          Write-Host "============================"
+          Write-Host "Session will auto-restart every 6h (silent mode)"
 
-    - name: Keep Runner Alive
-      run: |
-        for ($i=0; $i -lt 72; $i++) {
-          Write-Host "RDP Running..."
-          Start-Sleep -Seconds 300
-        }
+      - name: Keep Runner Alive (silent, then auto-restart)
+        run: |
+          # انتظر 5 ساعات و55 دقيقة دون كتابة أي شيء
+          $totalMinutes = 355  # 5h55m
+          $sleepSeconds = 300  # 5 دقائق
+          $iterations = [math]::Floor($totalMinutes * 60 / $sleepSeconds)
+          
+          for ($i=0; $i -lt $iterations; $i++) {
+            Start-Sleep -Seconds $sleepSeconds
+          }
+          Write-Host "Triggering next workflow before timeout..."
+
+      - name: Trigger next workflow (auto-restart)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          $repo = "$env:GITHUB_REPOSITORY"
+          $workflow_id = "rdp-pro.yml"
+          $url = "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/dispatches"
+          $body = @{ ref = "main" } | ConvertTo-Json
+          Invoke-RestMethod -Uri $url -Method Post -Headers @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = "application/vnd.github.v3+json"
+          } -Body $body -ContentType "application/json"
+          Write-Host "New workflow triggered"

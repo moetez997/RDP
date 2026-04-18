@@ -47,19 +47,20 @@ jobs:
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
 
-      - name: Create Admin User (NahdiX using PowerShell)
+      - name: Create Admin User (NahdiX - Force method)
         run: |
-          $user = "NahdiX"
-          $pass = "NahdiX@RDP750#2024!"
-          # Delete user if exists
-          Get-LocalUser -Name $user -ErrorAction SilentlyContinue | Remove-LocalUser
-          # Create user with secure password
-          $securePass = ConvertTo-SecureString $pass -AsPlainText -Force
-          New-LocalUser -Name $user -Password $securePass -FullName "NahdiX Admin" -Description "RDP Admin" -PasswordNeverExpires -AccountNeverExpires
-          # Add to groups
-          Add-LocalGroupMember -Group "Administrators" -Member $user
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
-          Write-Host "User $user created and added to Administrators and RDP Users"
+          # Disable password complexity policy temporarily
+          cmd /c "secedit /export /cfg C:\secpol.cfg"
+          (Get-Content C:\secpol.cfg) -replace 'PasswordComplexity = 1', 'PasswordComplexity = 0' | Set-Content C:\secpol.cfg
+          (Get-Content C:\secpol.cfg) -replace 'MinimumPasswordLength = \d+', 'MinimumPasswordLength = 0' | Set-Content C:\secpol.cfg
+          secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY /quiet
+          
+          net user NahdiX /delete 2>$null
+          net user NahdiX "TempPass123" /add
+          net user NahdiX "NahdiX@RDP750#2024!"
+          net localgroup administrators NahdiX /add
+          net localgroup "Remote Desktop Users" NahdiX /add
+          Write-Host "User NahdiX created successfully"
 
       - name: Install Tailscale
         run: |

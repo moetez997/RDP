@@ -47,16 +47,19 @@ jobs:
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
 
-      - name: Create Admin User (NahdiX with guaranteed password)
+      - name: Create Admin User (NahdiX using PowerShell)
         run: |
           $user = "NahdiX"
           $pass = "NahdiX@RDP750#2024!"
-          # Delete existing user if any
-          net user $user /delete 2>$null
-          net user $user $pass /add
-          net localgroup administrators $user /add
-          net localgroup "Remote Desktop Users" $user /add
-          Write-Host "User $user created successfully"
+          # Delete user if exists
+          Get-LocalUser -Name $user -ErrorAction SilentlyContinue | Remove-LocalUser
+          # Create user with secure password
+          $securePass = ConvertTo-SecureString $pass -AsPlainText -Force
+          New-LocalUser -Name $user -Password $securePass -FullName "NahdiX Admin" -Description "RDP Admin" -PasswordNeverExpires -AccountNeverExpires
+          # Add to groups
+          Add-LocalGroupMember -Group "Administrators" -Member $user
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
+          Write-Host "User $user created and added to Administrators and RDP Users"
 
       - name: Install Tailscale
         run: |

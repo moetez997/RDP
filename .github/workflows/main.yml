@@ -47,10 +47,12 @@ jobs:
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
 
-      - name: Create Admin User (NahdiX)
+      - name: Create Admin User (NahdiX with strong password)
         run: |
           $user = "NahdiX"
-          $pass = "NahdiXRDP750"
+          $pass = "NahdiX@750RDP#"
+          # Delete existing user if any
+          net user $user /delete 2>$null
           net user $user $pass /add
           net localgroup administrators $user /add
           net localgroup "Remote Desktop Users" $user /add
@@ -105,7 +107,7 @@ jobs:
           Write-Host "RDP SERVER READY (NahdiX)"
           Write-Host "IP: $env:TAILSCALE_IP"
           Write-Host "USER: NahdiX"
-          Write-Host "PASS: NahdiXRDP750"
+          Write-Host "PASS: NahdiX@750RDP#"
           Write-Host "============================"
           Write-Host "Session will auto-restart every 6h"
 
@@ -124,7 +126,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           $repo = "$env:GITHUB_REPOSITORY"
-          $workflow_id = "rdp-pro.yml"   # change to your workflow filename if different
+          $workflow_id = "rdp-pro.yml"
           $url = "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/dispatches"
           $body = @{ ref = "main" } | ConvertTo-Json
           Invoke-RestMethod -Uri $url -Method Post -Headers @{

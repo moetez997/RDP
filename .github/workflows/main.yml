@@ -1,4 +1,4 @@
-name: Windows RDP Pro (Fixed DPI + Auto-Restart)
+name: Windows RDP Pro (NahdiX)
 
 on:
   workflow_dispatch:
@@ -15,17 +15,19 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
 
-      - name: Fix DPI (Set to 100% - normal size)
+      - name: Force DPI to 100% (Normal Size)
         run: |
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v fEnableDpiScaling /t REG_DWORD /d 0 /f
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v UseDpiScaling /t REG_DWORD /d 0 /f
+          reg load "HKU\Default" "C:\Users\Default\NTUSER.DAT" 2>$null
+          reg add "HKU\Default\Control Panel\Desktop" /v LogPixels /t REG_DWORD /d 96 /f 2>$null
+          reg add "HKU\Default\Control Panel\Desktop" /v Win8DpiScaling /t REG_DWORD /d 0 /f 2>$null
+          reg unload "HKU\Default" 2>$null
           Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "LogPixels" -Value 96 -Type DWord
           Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Win8DpiScaling" -Value 0 -Type DWord
-          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "DPI Scaling" -ErrorAction SilentlyContinue
-          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "PreferredDpi" -ErrorAction SilentlyContinue
-          Remove-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "EnablePerMonitorDpi" -ErrorAction SilentlyContinue
           taskkill /f /im explorer.exe
-          Start-Sleep -Seconds 2
           Start-Process explorer.exe
-          Write-Host "DPI set to 100%. Everything should be normal size now."
+          Write-Host "DPI set to 100%"
 
       - name: Optimize RDP Performance
         run: |
@@ -45,10 +47,10 @@ jobs:
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
           Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
 
-      - name: Create Admin User
+      - name: Create Admin User (NahdiX)
         run: |
-          $user = "rdpuser"
-          $pass = "StrongPass123!"
+          $user = "NahdiX"
+          $pass = "NahdiXRDP750"
           net user $user $pass /add
           net localgroup administrators $user /add
           net localgroup "Remote Desktop Users" $user /add
@@ -100,12 +102,12 @@ jobs:
         run: |
           Write-Host ""
           Write-Host "============================"
-          Write-Host "RDP SERVER READY (DPI Fixed)"
+          Write-Host "RDP SERVER READY (NahdiX)"
           Write-Host "IP: $env:TAILSCALE_IP"
-          Write-Host "USER: rdpuser"
-          Write-Host "PASS: StrongPass123!"
+          Write-Host "USER: NahdiX"
+          Write-Host "PASS: NahdiXRDP750"
           Write-Host "============================"
-          Write-Host "Screen should be normal size now."
+          Write-Host "Session will auto-restart every 6h"
 
       - name: Keep Runner Alive (silent, then auto-restart)
         run: |
@@ -122,7 +124,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           $repo = "$env:GITHUB_REPOSITORY"
-          $workflow_id = "rdp-pro.yml"
+          $workflow_id = "rdp-pro.yml"   # change to your workflow filename if different
           $url = "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/dispatches"
           $body = @{ ref = "main" } | ConvertTo-Json
           Invoke-RestMethod -Uri $url -Method Post -Headers @{
